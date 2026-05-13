@@ -15,10 +15,6 @@ class BackupController extends Controller
      */
     public function runNow(DatabaseConnection $connection): JsonResponse
     {
-        if (! $connection->isActive()) {
-            return response()->json(['error' => 'Connection is paused.'], 422);
-        }
-
         $run = $this->backupService->runSnapshotBackup($connection);
         $ok = $run->status === 'success';
 

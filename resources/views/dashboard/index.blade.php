@@ -60,8 +60,8 @@
                            text-xs font-semibold transition-colors focus:outline-none
                            focus:ring-2 focus:ring-offset-1 disabled:opacity-50"
                     :class="status === 'active'
-                        ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 focus:ring-yellow-400'
-                        : 'bg-green-100 text-green-800 hover:bg-green-200 focus:ring-green-400'">
+                        ? 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-600'
+                        : 'bg-green-700 text-white hover:bg-green-800 focus:ring-green-800'">
                     <template x-if="toggling">
                         <svg class="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg"
                              fill="none" viewBox="0 0 24 24">
@@ -98,7 +98,7 @@
             <div class="flex items-center gap-2 flex-wrap">
                 <button
                     @click="backupNow()"
-                    :disabled="backingUp || status !== 'active'"
+                    :disabled="backingUp"
                     class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5
                            text-xs font-semibold text-white hover:bg-blue-700 transition-colors
                            focus:outline-none focus:ring-2 focus:ring-blue-500
