@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DatabaseConnection;
 use App\Models\BackupRun;
 use App\Models\BackupSchedule;
 use Carbon\Carbon;
@@ -14,15 +15,56 @@ class BackupService
     public function __construct(private readonly EncryptionService $encryption) {}
 
     /**
+     * Run a manual backup for a connection in its dedicated snapshot directory.
+     */
+    public function runSnapshotBackup(DatabaseConnection $connection): BackupRun
+    {
+        $firstSchedule = $connection->schedules()->orderBy('id')->first();
+
+        if (! $firstSchedule) {
+            throw new \RuntimeException('Connection has no backup schedules configured.');
+        }
+
+        $snapshotPath = "backups/{$connection->alias}/snapshot";
+
+        return $this->executeBackup(
+            connection: $connection,
+            backupScheduleId: $firstSchedule->id,
+            storagePath: $snapshotPath,
+        );
+    }
+
+    /**
      * Execute a backup for a given schedule and store locally + on S3.
      */
     public function runBackup(BackupSchedule $schedule): BackupRun
     {
         $connection = $schedule->databaseConnection;
 
+        $run = $this->executeBackup(
+            connection: $connection,
+            backupScheduleId: $schedule->id,
+            storagePath: $schedule->storagePath(),
+        );
+
+        if ($run->status === 'success') {
+            $schedule->update(['last_backup_at' => now()]);
+
+            // Enforce retention policy for scheduled backups
+            $this->cleanupOldBackups($schedule);
+        }
+
+        return $run;
+    }
+
+    /**
+     * Shared backup execution flow used by scheduled and manual snapshot backups.
+     */
+    private function executeBackup(DatabaseConnection $connection, int $backupScheduleId, string $storagePath): BackupRun
+    {
         $run = BackupRun::create([
             'database_connection_id' => $connection->id,
-            'backup_schedule_id'     => $schedule->id,
+            'backup_schedule_id'     => $backupScheduleId,
             'status'                 => 'running',
         ]);
 
@@ -54,7 +96,6 @@ class BackupService
             $this->encryption->createPasswordProtectedZip($tempDumpFile, $tempZipFile, $sqlEntryName);
 
             // Determine destination paths
-            $storagePath = $schedule->storagePath();
             $filename    = now()->format('Y-m-d_H-i-s') . '.zip';
             $localPath   = $storagePath . '/' . $filename;
             $zipContent  = file_get_contents($tempZipFile);
@@ -88,13 +129,8 @@ class BackupService
                 'completed_at' => now(),
             ]);
 
-            $schedule->update(['last_backup_at' => now()]);
-
-            // Enforce retention policy
-            $this->cleanupOldBackups($schedule);
-
         } catch (\Throwable $e) {
-            Log::error("Backup failed for schedule #{$schedule->id}: " . $e->getMessage());
+            Log::error("Backup failed for connection #{$connection->id}: " . $e->getMessage());
 
             $run->update([
                 'status'        => 'failed',

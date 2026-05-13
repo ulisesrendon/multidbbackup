@@ -25,6 +25,8 @@ Route::middleware('auth')->group(function () {
         ->name('connections.store');
     Route::put('/connections/{connection}/toggle', [DatabaseConnectionController::class, 'toggle'])
         ->name('connections.toggle');
+    Route::put('/connections/{connection}/schedules', [DatabaseConnectionController::class, 'updateSchedules'])
+        ->name('connections.schedules.update');
     Route::delete('/connections/{connection}', [DatabaseConnectionController::class, 'destroy'])
         ->name('connections.destroy');
 

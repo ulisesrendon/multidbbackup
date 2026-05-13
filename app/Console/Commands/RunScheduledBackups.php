@@ -26,12 +26,16 @@ class RunScheduledBackups extends Command
         $fails = 0;
 
         foreach ($schedules as $schedule) {
+            if (! $schedule instanceof BackupSchedule) {
+                continue;
+            }
+
             if (! $schedule->isDue()) {
                 continue;
             }
 
             $this->line("  → Backing up: {$schedule->databaseConnection->alias} "
-                . "(every {$schedule->frequency_hours}h, keep {$schedule->retentionLabel()})");
+                . "({$schedule->frequencyLabel()}, keep {$schedule->retentionLabel()})");
 
             $run = $this->backupService->runBackup($schedule);
 

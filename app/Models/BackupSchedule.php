@@ -45,7 +45,7 @@ class BackupSchedule extends Model
             return true;
         }
 
-        return now()->gte($this->last_backup_at->copy()->addHours($this->frequency_hours));
+        return now()->gte($this->nextBackupAt());
     }
 
     /**
@@ -57,7 +57,50 @@ class BackupSchedule extends Model
             return now();
         }
 
-        return $this->last_backup_at->copy()->addHours($this->frequency_hours);
+        return match ((int) $this->frequency_hours) {
+            1   => $this->last_backup_at->copy()->addHour(),
+            4   => $this->last_backup_at->copy()->addHours(4),
+            12  => $this->last_backup_at->copy()->addHours(12),
+            24  => $this->last_backup_at->copy()->addDay(),
+            48  => $this->last_backup_at->copy()->addDays(2),
+            168 => $this->last_backup_at->copy()->addWeek(),
+            200 => $this->last_backup_at->copy()->addMonth(),
+            default => $this->last_backup_at->copy()->addHours(max(1, (int) $this->frequency_hours)),
+        };
+    }
+
+    /**
+     * Human-readable label for schedule frequency.
+     */
+    public function frequencyLabel(): string
+    {
+        return match ((int) $this->frequency_hours) {
+            1   => 'Every Hour',
+            4   => 'Every 4 Hours',
+            12  => 'Every 12 Hours',
+            24  => 'Every Day',
+            48  => 'Every 2 Days',
+            168 => 'Every Week',
+            200 => 'Every Month',
+            default => 'Every ' . $this->frequency_hours . ' Hours',
+        };
+    }
+
+    /**
+     * Folder-safe frequency segment for backup path names.
+     */
+    public function frequencyPathSegment(): string
+    {
+        return match ((int) $this->frequency_hours) {
+            1   => '1h',
+            4   => '4h',
+            12  => '12h',
+            24  => '1d',
+            48  => '2d',
+            168 => '1w',
+            200 => '1m',
+            default => $this->frequency_hours . 'h',
+        };
     }
 
     /**
@@ -100,6 +143,6 @@ class BackupSchedule extends Model
         $unitInitial = substr($this->retention_unit, 0, 1); // h, d, w, m, y
         $retStr      = $this->retention_amount . $unitInitial;
 
-        return "backups/{$alias}/{$this->frequency_hours}h_{$retStr}";
+        return "backups/{$alias}/{$this->frequencyPathSegment()}_{$retStr}";
     }
 }

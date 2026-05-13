@@ -80,7 +80,7 @@
                 @foreach($connection->schedules as $schedule)
                 <div class="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                     <div class="text-gray-600 leading-tight">
-                        <span class="font-medium text-gray-800">Every {{ $schedule->frequency_hours }}h</span>
+                        <span class="font-medium text-gray-800">{{ $schedule->frequencyLabel() }}</span>
                         &nbsp;·&nbsp;keep {{ $schedule->retentionLabel() }}
                     </div>
                     <div class="text-right text-xs text-gray-500 whitespace-nowrap">
@@ -113,6 +113,23 @@
                         </svg>
                     </template>
                     <span x-text="backingUp ? 'Running…' : 'Backup Now'"></span>
+                </button>
+
+                <button
+                    type="button"
+                    @click="openSchedulesModalFromButton($el)"
+                    data-connection-id="{{ $connection->id }}"
+                    data-connection-alias="{{ e($connection->alias) }}"
+                    data-connection-schedules="{{ base64_encode(json_encode($connection->schedules->map(fn ($s) => [
+                        'id' => $s->id,
+                        'frequency_hours' => (string) $s->frequency_hours,
+                        'retention_amount' => (int) $s->retention_amount,
+                        'retention_unit' => $s->retention_unit,
+                    ])->values()->all())) }}"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5
+                           text-xs font-semibold text-gray-700 hover:bg-gray-200 transition-colors
+                           focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    Edit Schedules
                 </button>
 
                 {{-- Inline feedback --}}
@@ -282,9 +299,13 @@
                                             class="w-full rounded border border-gray-300 px-2 py-1.5
                                                    text-sm focus:outline-none focus:ring-2
                                                    focus:ring-blue-500 bg-white">
+                                            <option value="1">Every Hour</option>
                                             <option value="4">Every 4 hours</option>
                                             <option value="12">Every 12 hours</option>
-                                            <option value="24">Every 24 hours</option>
+                                            <option value="24">Every Day</option>
+                                            <option value="48">Every 2 Days</option>
+                                            <option value="168">Every Week</option>
+                                            <option value="200">Every Month</option>
                                         </select>
                                     </div>
 
@@ -367,28 +388,220 @@
         </div>
     </div>
 
+    {{-- =====================================================================
+         Edit Schedules Modal
+    ====================================================================== --}}
+    <div
+        x-show="showSchedulesModal"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm
+               overflow-y-auto px-4 py-8"
+        @click.self="closeSchedulesModal()">
+
+        <div
+            x-show="showSchedulesModal"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+
+            <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                <h3 class="text-base font-semibold text-gray-900">
+                    Edit Backup Schedules
+                    <span class="text-gray-500 font-medium" x-text="editingConnectionAlias ? `- ${editingConnectionAlias}` : ''"></span>
+                </h3>
+                <button @click="closeSchedulesModal()"
+                    class="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100
+                           transition-colors focus:outline-none">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" :action="`/connections/${editingConnectionId}/schedules`">
+                @csrf
+                @method('PUT')
+
+                <div class="px-6 py-5 space-y-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-sm font-medium text-gray-700">Backup Schedules</label>
+                        <button type="button" @click="addEditableSchedule()"
+                            class="text-xs font-medium text-blue-600 hover:text-blue-800
+                                   focus:outline-none transition-colors">
+                            + Add schedule
+                        </button>
+                    </div>
+
+                    <template x-for="(row, index) in editableScheduleRows" :key="`${row.id ?? 'new'}-${index}`">
+                        <div class="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            <input type="hidden" :name="`schedules[${index}][id]`" :value="row.id ?? ''">
+
+                            <div class="flex-1 min-w-0">
+                                <label class="block text-xs text-gray-500 mb-1">Frequency</label>
+                                <select
+                                    :name="`schedules[${index}][frequency_hours]`"
+                                    x-model="row.frequency_hours"
+                                    class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="1">Every Hour</option>
+                                    <option value="4">Every 4 Hours</option>
+                                    <option value="12">Every 12 Hours</option>
+                                    <option value="24">Every Day</option>
+                                    <option value="48">Every 2 Days</option>
+                                    <option value="168">Every Week</option>
+                                    <option value="200">Every Month</option>
+                                </select>
+                            </div>
+
+                            <div class="w-20 flex-shrink-0">
+                                <label class="block text-xs text-gray-500 mb-1">Keep for</label>
+                                <input
+                                    type="number"
+                                    :name="`schedules[${index}][retention_amount]`"
+                                    x-model="row.retention_amount"
+                                    min="1"
+                                    required
+                                    class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <div class="w-28 flex-shrink-0">
+                                <label class="block text-xs text-gray-500 mb-1">&nbsp;</label>
+                                <select
+                                    :name="`schedules[${index}][retention_unit]`"
+                                    x-model="row.retention_unit"
+                                    class="w-full rounded border border-gray-300 px-2 py-1.5 text-sm
+                                           focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="hours">Hours</option>
+                                    <option value="days">Days</option>
+                                    <option value="weeks">Weeks</option>
+                                    <option value="months">Months</option>
+                                    <option value="years">Years</option>
+                                </select>
+                            </div>
+
+                            <div class="flex-shrink-0 pt-5">
+                                <button type="button"
+                                    @click="removeEditableSchedule(index)"
+                                    :disabled="editableScheduleRows.length === 1"
+                                    class="rounded p-1 text-gray-400 hover:text-red-500 disabled:opacity-30
+                                           transition-colors focus:outline-none">
+                                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg"
+                                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+                    <button type="button" @click="closeSchedulesModal()"
+                        class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100
+                               transition-colors focus:outline-none">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white
+                               hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        Save Schedules
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <script>
 function dashboard() {
     return {
         showModal: {{ $errors->any() ? 'true' : 'false' }},
+        showSchedulesModal: false,
+        editingConnectionId: null,
+        editingConnectionAlias: '',
+        editableScheduleRows: [],
         scheduleRows: [
-            { frequency_hours: '4', retention_amount: 7, retention_unit: 'days' }
+            { frequency_hours: '24', retention_amount: 7, retention_unit: 'days' }
         ],
+
+        updateBodyOverflow() {
+            document.body.style.overflow = (this.showModal || this.showSchedulesModal) ? 'hidden' : '';
+        },
 
         openModal() {
             this.showModal = true;
-            document.body.style.overflow = 'hidden';
+            this.updateBodyOverflow();
         },
 
         closeModal() {
             this.showModal = false;
-            document.body.style.overflow = '';
+            this.updateBodyOverflow();
+        },
+
+        openSchedulesModal(connectionId, alias, schedules) {
+            this.editingConnectionId = connectionId;
+            this.editingConnectionAlias = alias;
+            this.editableScheduleRows = (schedules || []).map((item) => ({
+                id: item.id ?? null,
+                frequency_hours: String(item.frequency_hours ?? '24'),
+                retention_amount: Number(item.retention_amount ?? 7),
+                retention_unit: item.retention_unit ?? 'days',
+            }));
+
+            if (this.editableScheduleRows.length === 0) {
+                this.editableScheduleRows = [{ id: null, frequency_hours: '24', retention_amount: 7, retention_unit: 'days' }];
+            }
+
+            this.showSchedulesModal = true;
+            this.updateBodyOverflow();
+        },
+
+        openSchedulesModalFromButton(el) {
+            const id = Number(el.dataset.connectionId || 0);
+            const alias = el.dataset.connectionAlias || '';
+
+            let schedules = [];
+            try {
+                schedules = JSON.parse(atob(el.dataset.connectionSchedules || 'W10='));
+            } catch {
+                schedules = [];
+            }
+
+            this.openSchedulesModal(id, alias, schedules);
+        },
+
+        closeSchedulesModal() {
+            this.showSchedulesModal = false;
+            this.editingConnectionId = null;
+            this.editingConnectionAlias = '';
+            this.editableScheduleRows = [];
+            this.updateBodyOverflow();
+        },
+
+        addEditableSchedule() {
+            this.editableScheduleRows.push({ id: null, frequency_hours: '24', retention_amount: 7, retention_unit: 'days' });
+        },
+
+        removeEditableSchedule(index) {
+            if (this.editableScheduleRows.length > 1) {
+                this.editableScheduleRows.splice(index, 1);
+            }
         },
 
         addScheduleRow() {
-            this.scheduleRows.push({ frequency_hours: '4', retention_amount: 7, retention_unit: 'days' });
+            this.scheduleRows.push({ frequency_hours: '24', retention_amount: 7, retention_unit: 'days' });
         },
 
         removeScheduleRow(index) {
