@@ -12,3 +12,46 @@
 
 /* Hide elements managed by Alpine.js until it initialises */
 [x-cloak] { display: none !important; }
+
+/* Dark mode overrides */
+body {
+    background-color: #111827;
+    color: #f3f4f6;
+}
+
+.dark .bg-white {
+    background-color: #1f2937 !important;
+}
+.dark .bg-gray-50 {
+    background-color: #111827 !important;
+}
+.dark .text-gray-900 {
+    color: #f3f4f6 !important;
+}
+.dark .text-gray-800 {
+    color: #d1d5db !important;
+}
+.dark .text-gray-700 {
+    color: #9ca3af !important;
+}
+.dark .border-gray-200 {
+    border-color: #374151 !important;
+}
+.dark .border-gray-100 {
+    border-color: #1f2937 !important;
+}
+.dark .shadow-sm {
+    box-shadow: 0 1px 3px 0 #00000040, 0 1px 2px -1px #00000040 !important;
+}
+.dark .bg-green-50 {
+    background-color: #064e3b !important;
+}
+.dark .bg-red-50 {
+    background-color: #7f1d1d !important;
+}
+.dark .text-green-800 {
+    color: #bbf7d0 !important;
+}
+.dark .text-red-800 {
+    color: #fecaca !important;
+}
